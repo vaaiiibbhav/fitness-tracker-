@@ -3,7 +3,7 @@ const User = require("./models/User"); // Ensure this is the correct path to you
 
 // Connect to MongoDB once
 mongoose
-  .connect("mongodb+srv://2005akjha:aditya@cluster0.gxoqohx.mongodb.net/fitness", {
+  .connect("mongodb+srv://vaaiiibbhav:KmsJ1UZRaKRgia1O@cluster0-fitpal.oscdjpa.mongodb.net/fitness-tracker?retryWrites=true&w=majority", {
     useNewUrlParser: true,
     useUnifiedTopology: true,
   })
@@ -20,6 +20,17 @@ const users = [
     name: "John Doe",
     email: "johndoe@example.com",
     password: "password123", // Use a hashed password in a real app
+    isVerified: true,
+    profileImage: "",
+    height: 180,
+    weight: 75,
+    gender: "male",
+    age: 30
+  },
+  {
+    name: "Vaibhav Verma",
+    email: "vaaiiibbhav@gmail.com",
+    password: "password@123", // Use a hashed password in a real app
     isVerified: true,
     profileImage: "",
     height: 180,

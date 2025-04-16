@@ -10,65 +10,76 @@ const registerUser = async (req, res) => {
   const { name, email, password } = req.body;
 
   try {
-    // Check if user already exists
-    const userExists = await User.findOne({ email,isVerified: true });
-    const userNotVerified = await User.findOne({ email,isVerified: false });
-    if (userExists) {
-      return res.status(400).json({ message: "User already exists" });
+    console.log('Starting registration process for:', email);
+
+    // Validate input
+    if (!name || !email || !password) {
+      console.log('Missing required fields');
+      return res.status(400).json({ 
+        message: "All fields are required",
+        details: {
+          name: !name ? "Name is required" : null,
+          email: !email ? "Email is required" : null,
+          password: !password ? "Password is required" : null
+        }
+      });
     }
-    if (userNotVerified) {
-      await userNotVerified.deleteOne();
+
+    // Check if user already exists
+    console.log('Checking for existing user');
+    const userExists = await User.findOne({ email });
+    
+    if (userExists) {
+      console.log('User already exists:', email);
+      return res.status(400).json({ message: "User already exists" });
     }
 
     // Hash the password
+    console.log('Hashing password');
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create a verification token
-    const verificationToken = jwt.sign({ email }, process.env.JWT_SECRET, {
-      expiresIn: "1h",
-    });
-
-    // Create a transporter object
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-    });
-
-    // Send verification email
-    const emailContent = verificationEmail(name, verificationToken);
-
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
-      to: email,
-      subject: "Verify Your Email",
-      html: emailContent,
-    };
-
-    // Use promisify to convert sendMail to a promise-based function
-    const sendMailPromise = util.promisify(transporter.sendMail).bind(transporter);
-
-    // Send the email
-    await sendMailPromise(mailOptions);
-
-    // If email sent successfully, create the user in the database
+    // Create user
+    console.log('Creating user in database');
     const user = await User.create({
       name,
       email,
-      password: hashedPassword,
-      verificationToken,
+      password: hashedPassword
     });
 
-    await user.save();
+    console.log('User created successfully:', user._id);
 
     res.status(201).json({
-      message: "User registered. Please check your email to verify your account.",
+      message: "User registered successfully",
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email
+      }
     });
   } catch (error) {
     console.error("Error registering user:", error);
-    res.status(500).json({ message: "Failed to register user. Please try again." });
+    
+    // Log the full error for debugging
+    console.error("Full error details:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
+    
+    if (error.code === 11000) {
+      return res.status(400).json({ 
+        message: "Email already exists",
+        error: "DUPLICATE_EMAIL"
+      });
+    }
+    
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({ 
+        message: "Validation error",
+        details: error.message
+      });
+    }
+
+    res.status(500).json({ 
+      message: "Failed to register user. Please try again.",
+      error: error.message
+    });
   }
 };
 
@@ -76,15 +87,15 @@ const loginUser = async (req, res) => {
   const { email, password } = req.body;
 
   try {
+    console.log('Login attempt for:', email);
+    
     // Find the user by email
     const user = await User.findOne({ email });
 
     // Check if user exists and password matches
     if (user && (await bcrypt.compare(password, user.password))) {
-      if (!user.isVerified) {
-        return res.status(400).json({ message: "Email not verified" });
-      }
-
+      console.log('Login successful for:', email);
+      
       // Generate a JWT token
       const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
         expiresIn: "30d",
@@ -92,6 +103,7 @@ const loginUser = async (req, res) => {
 
       return res.status(200).json({ token });
     } else {
+      console.log('Login failed for:', email);
       return res.status(400).json({ message: "Invalid credentials" });
     }
   } catch (error) {
@@ -127,7 +139,7 @@ const verifyEmail = async (req, res) => {
 
 const getUserById = async (req, res) => {
   try {
-    const user = await User.findById(req.params.id).select("-password"); // Exclude password field
+    const user = await User.findById(req.params.id).select("-password");
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -140,13 +152,10 @@ const getUserById = async (req, res) => {
 
 const updateProfile = async (req, res) => {
   try {
-    
-
     const { email, name, password, height, weight, gender, age } = req.body;
     const user = await User.findOne({ email });
 
     if (!user) {
-      
       return res.status(404).json({ message: "User not found" });
     }
 
@@ -158,7 +167,6 @@ const updateProfile = async (req, res) => {
 
     if (req.file) {
       user.profileImage = `/uploads/${req.file.filename.replace(/\\/g, '/')}`;
-      
     }
 
     if (password) {

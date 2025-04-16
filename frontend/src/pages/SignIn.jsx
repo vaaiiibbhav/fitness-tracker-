@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import axios from "axios";
+import api from "../api/axios";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -19,7 +19,7 @@ const SignIn = () => {
     const trimmedPassword = password.trim(); // Trim the password
     setLoading(true); // Start loading
     try {
-      const response = await axios.post("http://localhost:3000/api/users/login", {
+      const response = await api.post("/api/users/login", {
         email,
         password: trimmedPassword,
       });

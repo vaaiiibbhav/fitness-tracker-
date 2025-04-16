@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import axios from 'axios'
+import api from '../api/axios'
 import { useAuth } from '../context/AuthContext'
 import { Line } from 'react-chartjs-2'
 import {
@@ -47,11 +47,12 @@ const WorkoutDetails = () => {
     weightPerSet: [],
   });
   const [filteredExercises, setFilteredExercises] = useState([]);
-  const [pastWorkouts, setPastWorkouts] = useState([])
-  const [analyticsExercise, setAnalyticsExercise] = useState('')
-  const [allExercises, setAllExercises] = useState([])
-  const [analyticsData, setAnalyticsData] = useState(null)
-  const [selectedDate, setSelectedDate] = useState('');
+  const [pastWorkouts, setPastWorkouts] = useState([]);
+  const [analyticsExercise, setAnalyticsExercise] = useState('');
+  const [analyticsData, setAnalyticsData] = useState(null);
+  const [allExercises, setAllExercises] = useState([]);
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [error, setError] = useState(null);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -81,47 +82,42 @@ const WorkoutDetails = () => {
   }
 
   const handleMuscleGroupChange = (e) => {
-    const selectedMuscleGroup = e.target.value;
-    setWorkoutData({
-      ...workoutData,
-      muscleGroup: selectedMuscleGroup,
-      exercise: '', // Reset exercise when muscle group changes
-    });
-    setFilteredExercises(exerciseData[selectedMuscleGroup] || []);
+    const selectedGroup = e.target.value;
+    setWorkoutData(prev => ({
+      ...prev,
+      muscleGroup: selectedGroup,
+      exercise: ''
+    }));
+    setFilteredExercises(selectedGroup ? exerciseData[selectedGroup] : []);
   };
 
   const handleExerciseChange = (e) => {
-    setWorkoutData({
-      ...workoutData,
-      exercise: e.target.value,
-    });
+    setWorkoutData(prev => ({
+      ...prev,
+      exercise: e.target.value
+    }));
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault()
+    e.preventDefault();
     try {
-      const response = await axios.post('/api/workouts', {
-        ...workoutData,
-        repsPerSet: workoutData.repsPerSet.map(rep => parseInt(rep || 0)),
-        weightPerSet: workoutData.weightPerSet.map(weight => parseFloat(weight || 0))
-      }, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('jwttoken')}` }
-      })
-      // console.log('Workout added:', response.data)
-      setWorkoutData({ muscleGroup: '', exercise: '', sets: '', repsPerSet: [], weightPerSet: [] })
-      fetchPastWorkouts()
+      const response = await api.post('/api/workouts', workoutData);
+      setWorkoutData({ muscleGroup: '', exercise: '', sets: '', repsPerSet: [], weightPerSet: [] });
+      fetchPastWorkouts();
     } catch (error) {
-      console.error('Error adding workout:', error.response?.data || error.message)
+      setError(error.response?.data?.message || 'Error adding workout');
+      console.error('Error adding workout:', error);
     }
-  }
+  };
 
   const fetchPastWorkouts = async () => {
     try {
-      const response = await axios.get('/api/workouts', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('jwttoken')}` }
-      });
-      setPastWorkouts(response.data);
+      const response = await api.get('/api/workouts');
+      setPastWorkouts(response.data || []);
+      setError(null);
     } catch (error) {
+      setPastWorkouts([]);
+      setError('Error fetching workouts');
       console.error('Error fetching past workouts:', error);
     }
   };
@@ -129,9 +125,7 @@ const WorkoutDetails = () => {
   const fetchAnalytics = async () => {
     if (!analyticsExercise) return;
     try {
-      const response = await axios.get(`/api/workouts/analytics?exercise=${analyticsExercise}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('jwttoken')}` }
-      });
+      const response = await api.get(`/api/workouts/analytics?exercise=${analyticsExercise}`);
       setAnalyticsData(response.data);
     } catch (error) {
       console.error('Error fetching analytics:', error);
@@ -178,17 +172,22 @@ const WorkoutDetails = () => {
   };
 
   const getUniqueExercises = (workouts) => {
-    const exercises = workouts.map(workout => workout.exercise)
-    return [...new Set(exercises)].sort()
-  }
+    if (!Array.isArray(workouts) || workouts.length === 0) {
+      return [];
+    }
+    const exercises = workouts
+      .filter(workout => workout && workout.exercise)
+      .map(workout => workout.exercise);
+    return [...new Set(exercises)].sort();
+  };
 
   useEffect(() => {
-    fetchPastWorkouts()
-  }, [])
+    fetchPastWorkouts();
+  }, []);
 
   useEffect(() => {
-    setAllExercises(getUniqueExercises(pastWorkouts))
-  }, [pastWorkouts])
+    setAllExercises(getUniqueExercises(pastWorkouts));
+  }, [pastWorkouts]);
 
   const chartOptions = {
     responsive: true,
